@@ -1085,7 +1085,15 @@ onclick="return checkoutGuard(event)"
 </div>
 </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+/* =========================
+Supabase - نفس مشروع لوحة H&A
+========================= */
+const SUPABASE_URL = "https://dzykruhsbfbxxivekfhq.supabase.co";
+const SUPABASE_KEY = "sb_publishable_CNTMX5leuWKhzuF5m1py_g_kHmTND_d";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 /* =========================
 المتغيرات
 ========================= */
@@ -1148,65 +1156,33 @@ let productsLoading = false;
 let lastProductsRefresh = 0;
 let productsRefreshTimer = null;
 /* =========================
-تحميل المنتجات من Node.js + MySQL
-+ منع التحميلات المتزامنة
+تحميل المنتجات مباشرة من Supabase
+نفس جدول products المستخدم في لوحة الإدارة
 ========================= */
 async function loadProducts(options = {}){
-const container =
-document.getElementById("productsContainer");
+const container = document.getElementById("productsContainer");
 const silent = options.silent === true;
 if(productsLoading) return;
 productsLoading = true;
-if(!silent){
-container.innerHTML =
-`
-<div class="loading">
-جاري تحميل المنتجات... ⏳
-</div>
-`;
+if(!silent && container){
+container.innerHTML = `<div class="loading">جاري تحميل المنتجات... ⏳</div>`;
 }
 try{
-/*
-المنتجات أصبحت تُقرأ من API الخاص بـ Node.js على نفس الموقع.
-لا يوجد أي مفتاح قاعدة بيانات أو بيانات Supabase داخل المتصفح.
-*/
-const response = await fetch(
-"/api/products",
-{
-method:"GET",
-cache:"no-store",
-headers:{
-"Accept":"application/json"
-}
-}
-);
-if(!response.ok){
-let errorText = "";
-try{ errorText = await response.text(); }catch(e){}
-throw new Error(
-`Products request failed: ${response.status} ${errorText}`
-);
-}
-const data = await response.json();
+const { data, error } = await supabaseClient
+.from("products")
+.select("*")
+.order("created_at", { ascending:false });
+if(error) throw error;
 allProducts = Array.isArray(data) ? data : [];
 const searchInput = document.getElementById("search");
-if(searchInput && searchInput.value.trim()){
-searchProducts();
-}else{
-displayProducts(allProducts);
-}
+if(searchInput && searchInput.value.trim()) searchProducts();
+else displayProducts(allProducts);
 displayFeaturedProducts();
 lastProductsRefresh = Date.now();
 }catch(error){
-console.error("RAFAH products loading error:",error);
-if(!allProducts.length){
-container.innerHTML =
-`
-<div class="loading">
-حدث خطأ أثناء تحميل المنتجات<br>
-<span style="font-size:13px;color:#999">جربي تحديث الصفحة بعد لحظات</span>
-</div>
-`;
+console.error("H&A Supabase products loading error:", error);
+if(container && !allProducts.length){
+container.innerHTML = `<div class="loading">تعذر تحميل المنتجات من قاعدة البيانات.<br><span style="font-size:13px;color:#999">تأكدي من اتصال Supabase وسياسة السماح بقراءة المنتجات للزوار (SELECT).</span></div>`;
 }else if(!silent){
 const searchInput = document.getElementById("search");
 if(searchInput && searchInput.value.trim()) searchProducts();
@@ -1218,36 +1194,18 @@ productsLoading = false;
 }
 }
 /* =========================
-تحديث المنتجات من Node.js
-بدل Supabase Realtime
+تحديث المنتجات تلقائيًا من Supabase
 ========================= */
 function setupProductsAutoRefresh(){
-if(productsRefreshTimer){
-clearInterval(productsRefreshTimer);
-productsRefreshTimer = null;
-}
-/*
-بما أن قاعدة البيانات أصبحت MySQL على نفس السيرفر،
-نستخدم تحديثًا خفيفًا كل 30 ثانية بدل Realtime الخاص بـ Supabase.
-*/
-productsRefreshTimer = setInterval(()=>{
-if(!document.hidden){
-loadProducts({silent:true});
-}
-},30000);
-/* تحديث عند العودة للصفحة/التبويب */
-const refreshWhenVisible = ()=>{
+if(productsRefreshTimer){clearInterval(productsRefreshTimer);productsRefreshTimer=null;}
+productsRefreshTimer=setInterval(()=>{if(!document.hidden) loadProducts({silent:true});},30000);
+const refreshWhenVisible=()=>{
 if(document.hidden) return;
-if(Date.now() - lastProductsRefresh >= 10000){
-loadProducts({silent:true});
-}
+if(Date.now()-lastProductsRefresh>=10000) loadProducts({silent:true});
 };
 window.addEventListener("focus",refreshWhenVisible);
 document.addEventListener("visibilitychange",refreshWhenVisible);
-/* تحديث عند استعادة الاتصال بالإنترنت */
-window.addEventListener("online",()=>{
-loadProducts({silent:true});
-});
+window.addEventListener("online",()=>loadProducts({silent:true}));
 }
 /* =========================
 عرض المنتجات
