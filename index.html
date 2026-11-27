@@ -1324,10 +1324,10 @@ onclick="closeCart()"
 <div id="cartItems"></div>
 <div class="checkout-form">
 <h3>بيانات التوصيل</h3>
-<label>الاسم بالكامل<input type="text" id="custName" placeholder="مثال: هدى خالد" autocomplete="name"></label>
-<label>رقم الموبايل<input type="tel" id="custPhone" placeholder="01xxxxxxxxx" autocomplete="tel" inputmode="tel"></label>
-<label>المحافظة<input type="text" id="custGov" placeholder="مثال: الدقهلية"></label>
-<label>العنوان بالتفصيل<textarea id="custAddress" rows="3" placeholder="المركز / المدينة، اسم الشارع، رقم العمارة، الدور، رقم الشقة، أقرب علامة مميزة"></textarea></label>
+<label>الاسم بالكامل<input type="text" id="custName" autocomplete="name"></label>
+<label>رقم الموبايل<input type="tel" id="custPhone" autocomplete="tel" inputmode="tel"></label>
+<label>المحافظة<input type="text" id="custGov"></label>
+<label>العنوان بالتفصيل<textarea id="custAddress" rows="3"></textarea></label>
 </div>
 <div class="total">
 الإجمالي:
@@ -1664,6 +1664,26 @@ return String(value ?? "")
 .replace(/[^\p{L}\p{N}]+/gu, " ")
 .trim();
 }
+const AR_LAT_MAP={ا:"a",أ:"a",إ:"a",آ:"a",ٱ:"a",ب:"b",ت:"t",ث:"s",ج:"g",ح:"h",خ:"kh",د:"d",ذ:"z",ر:"r",ز:"z",س:"s",ش:"sh",ص:"s",ض:"d",ط:"t",ظ:"z",ع:"a",غ:"gh",ف:"f",ق:"k",ك:"k",ل:"l",م:"m",ن:"n",ه:"h",و:"o",ي:"i",ى:"a",ئ:"i",ؤ:"o",ة:"h",ء:""};
+function arabicToLatin(text){
+return String(text ?? "").split("").map(ch=>AR_LAT_MAP[ch] ?? ch).join("");
+}
+function latinSkeleton(word){
+return String(word ?? "")
+.toLowerCase()
+.replace(/y/g,"i")
+.replace(/ph/g,"f")
+.replace(/ck/g,"k")
+.replace(/x/g,"ks")
+.replace(/[aeiou]/g,"");
+}
+function latinWordMatches(queryWord,haySkelWords){
+let qs=latinSkeleton(queryWord);
+if(!qs)return true;
+const variants=[qs];
+if(qs.length>3&&qs.endsWith("s"))variants.push(qs.slice(0,-1));
+return variants.some(q=>q.length<3?haySkelWords.some(hs=>hs===q):haySkelWords.some(hs=>hs.includes(q)));
+}
 function searchProducts(){
 const input = document.getElementById("search");
 const text = normalizeSearchText(input ? input.value : "");
@@ -1679,7 +1699,12 @@ product.description || "",
 product.category || "",
 product.sizes || ""
 ].join(" "));
-return words.every(word=>hay.includes(word));
+const haySkelWords=arabicToLatin(hay).split(/[^\p{L}\p{N}]+/u).map(latinSkeleton).filter(Boolean);
+return words.every(word=>{
+if(hay.includes(word))return true;
+if(/[a-z]/i.test(word))return latinWordMatches(word,haySkelWords);
+return false;
+});
 });
 displayProducts(filtered);
 }
@@ -1695,7 +1720,6 @@ const sizeEl=el.querySelector(".size");
 const size=sizeEl?sizeEl.value:"بدون مقاس";
 if(sizeEl&&!size){showRafahToast("من فضلك اختاري المقاس أولاً");sizeEl.focus();return;}
 addProductToCart(product,size);
-openCart();
 }
 function addProductToCart(product,size){
 const id=getProductId(product), price=getFinalPrice(product);
@@ -1770,13 +1794,6 @@ event.preventDefault();
 showRafahToast("السلة فاضية، اختاري منتجات الأول");
 return false;
 }
-const c=getCustomerInfo();
-if(!c.name||!c.address){
-event.preventDefault();
-showRafahToast(!c.name?"اكتبي اسمك الأول":"اكتبي العنوان بالتفصيل الأول");
-document.getElementById(!c.name?"custName":"custAddress").focus();
-return false;
-}
 saveCustomerInfo();
 updateCart();
 return true;
@@ -1839,7 +1856,7 @@ if(!currentDetailsProduct)return;
 const sizes=getSizes(currentDetailsProduct), sizeEl=document.getElementById("detailsSize");
 const size=sizes.length?sizeEl.value:"بدون مقاس";
 if(sizes.length&&!size){showRafahToast("اختاري المقاس الأول");return;}
-addProductToCart(currentDetailsProduct,size);closeProductDetails();openCart();
+addProductToCart(currentDetailsProduct,size);closeProductDetails();
 }
 /* =========================
 واتساب
