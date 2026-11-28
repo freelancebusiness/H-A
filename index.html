@@ -1585,7 +1585,7 @@ if(!panel || !title || !buttons) return;
 const branches = {
 "أطفال": ["أطفال داخلي", "أطفال خارجي"],
 "حريمي": ["حريمي بيتي", "حريمي خارجي"],
-"رجالي": ["رجالي بيتي وخروج", "رجالي داخلي"]
+"رجالي": ["الكل", "ترنجات", "هودي", "جواكت"]
 };
 title.textContent = main;
 buttons.innerHTML = "";
@@ -1594,8 +1594,18 @@ const btn = document.createElement("button");
 btn.type = "button";
 btn.className = "subcategory-btn";
 btn.textContent = branch;
+if(main === "رجالي" && allProducts.length){
+const n = branch === "الكل"
+? allProducts.filter(p=>(p.category||"").startsWith("رجالي")).length
+: allProducts.filter(p=>menBranchMatches(p,branch)).length;
+btn.textContent = branch + " (" + n + ")";
+}
 btn.onclick = () => {
+if(main === "رجالي"){
+filterProducts(branch === "الكل" ? "رجالي" : "رجالي " + branch, btn);
+}else{
 filterProducts(branch, btn);
+}
 document.getElementById("products")?.scrollIntoView({
 behavior:"smooth",
 block:"start"
@@ -1603,12 +1613,27 @@ block:"start"
 };
 buttons.appendChild(btn);
 });
+if(main === "رجالي"){
+filterProducts("رجالي", buttons.querySelector(".subcategory-btn"));
+}
 panel.style.display = "block";
 panel.scrollIntoView({behavior:"smooth", block:"nearest"});
 }
 function closeSubcategories(){
 const panel = document.getElementById("subcategoryPanel");
 if(panel) panel.style.display = "none";
+}
+function menBranchMatches(product, branch){
+const cat = product.category || "";
+if(cat === "رجالي " + branch) return true;
+if(!cat.startsWith("رجالي")) return false;
+const name = product.name || "";
+const keys = {
+"ترنجات": ["ترنج"],
+"هودي": ["هودي"],
+"جواكت": ["جاكت","جاكيت"]
+}[branch] || [];
+return keys.some(k => name.includes(k));
 }
 function filterProducts(category,button){
 document
@@ -1623,6 +1648,9 @@ let filtered;
 if(category==="all"){
 filtered =
 allProducts;
+}else if(category==="رجالي ترنجات"||category==="رجالي هودي"||category==="رجالي جواكت"){
+filtered =
+allProducts.filter(p=>menBranchMatches(p,category.slice("رجالي ".length)));
 }else{
 filtered =
 allProducts.filter(product=>{
